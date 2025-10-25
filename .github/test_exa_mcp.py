@@ -76,13 +76,37 @@ async def test_exa_mcp():
         )
 
         if result and result.content:
-            # Check if result contains an error message
-            result_str = str(result.content)
-            if "error" in result_str.lower() or "invalid" in result_str.lower():
-                print(f"❌ Web search failed - API key invalid")
+            # Check if result is an error response (indicated by isError flag or error in structured response)
+            if result.isError:
+                print(f"❌ Web search failed - API key invalid or error occurred")
                 return False
-            print(f"✓ Web search successful - returned results")
-            return True
+
+            # Additional check: try to parse the JSON response and look for actual error fields
+            try:
+                import json
+                result_str = str(result.content[0].text) if result.content else ""
+                result_json = json.loads(result_str)
+
+                # Check if there's an explicit error field in the response
+                if "error" in result_json or result_json.get("success") == False:
+                    print(f"❌ Web search failed - API returned error")
+                    return False
+
+                # Check if we got actual results
+                if "results" in result_json and len(result_json["results"]) > 0:
+                    print(f"✓ Web search successful - returned {len(result_json['results'])} results")
+                    return True
+                else:
+                    print(f"❌ Web search failed - no results in response")
+                    return False
+            except (json.JSONDecodeError, AttributeError, IndexError):
+                # If we can't parse JSON, just check that we got content
+                if result.content:
+                    print(f"✓ Web search successful - returned results")
+                    return True
+                else:
+                    print(f"❌ Web search failed - no content in response")
+                    return False
         else:
             print("❌ Web search failed - no results returned")
             return False
